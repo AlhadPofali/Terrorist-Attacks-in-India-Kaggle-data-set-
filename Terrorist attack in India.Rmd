@@ -1,0 +1,422 @@
+---
+title: "Terrorism in India"
+author: Alhad Pofali
+output:
+  html_document:
+    number_sections: false
+    toc: true
+    fig_width: 8
+    fig_height: 6
+    theme: cosmo
+    highlight: tango
+    code_folding: hide
+---
+
+```{r setup, include=FALSE}
+library(ggplot2)
+library(leaflet)
+library(treemap)
+library(tidytext)
+library(tidyr)
+library(dplyr)
+options(knitr.table.format = "html")
+```
+
+```{r input_file, include=FALSE}
+
+all_data <- read.csv("/users/saurabhsawant/globalterrorismdb_0617dist.csv", stringsAsFactors=FALSE)
+```
+
+```{r data_for_india}
+
+all_data %>% filter(country_txt == 'India') -> dfy_In
+
+```
+
+# Introduction
+
+This data set contains details about terrorist attack worldwide. I have taken this dataset in exploring incidents related to terrorist attacks in India and neighbouring countries. 
+
+Exploration involves details about people killed over the years from ``r min(dfy_In$iyear)`` to ``r max(dfy_In$iyear)`` with respect to terror groups, places of attack, targets and wepons used.
+
+```{r people_killed_and_wounded_in_India}
+
+dfy_In_kw <- subset(dfy_In, dfy_In$nkill>0)
+dfy_In_kw$nkill[is.na(dfy_In_kw$nkill)] <- 0
+dfy_In_kw$nwound[is.na(dfy_In_kw$nwound)] <- 0
+dfy_In_kw <-subset(dfy_In_kw, dfy_In_kw$latitude>0)
+```
+
+Some outline about the data related only about India attacks :
+No. of incidents related to India    : ``r nrow(dfy_In)``,
+No. of incidents where people are killed or wounded: ``r nrow(dfy_In_kw)``,
+No. of terror groups identified  : ``r length(unique(dfy_In$gname))``,
+
+# Distribution of People killed across India
+Treemap shows the states which were attacked most by the terrorist groups. Size reflects number of kills and gradient of color reflects number of wounded people.
+```{r people killed in India}
+treemap(dfy_In_kw, #Your data frame object
+        index=c("provstate"),  
+        type = "value",
+        vSize = "nkill", 
+        vColor="nwound",
+        palette = "Reds", 
+        title="Killings in Indian state  (Countries/Years) - size is proportional with the number of killings", 
+        title.legend = "Number of wounded",
+        fontsize.title = 10 
+)
+```
+
+# Geographical distribution of attacks
+
+Leaflet map describes the spread of terror in Inda with number of incidents in various regions. Interacting with map will show attacks in different states and cities. Going in cluster details will reviel details about the One does not help but notice that North and East India have faced brunt of attacks. There are 4953 number of incidents where people are killed.
+```{r _Geographical distribution}
+leaflet(data = dfy_In_kw) %>%
+  addTiles() %>%
+  addMarkers(lat=dfy_In_kw$latitude, lng=dfy_In_kw$longitude, clusterOptions = markerClusterOptions(),
+             popup= paste(
+               "<br><strong>Killed: </strong>", dfy_In_kw$nkill
+             ))
+
+```
+
+# Top 10 terror groups
+
+Over the given history, this bar plot shows main perpetrators who have carried out operations in India.
+
+
+```{r}
+#Top 10 terror groups in India by number of people killed
+
+dfy_In_kw %>% group_by(gname) %>% summarise(n = sum(nkill)) %>% ungroup() -> dfy_In_grp
+dfy_In_grp <- arrange(dfy_In_grp, desc(dfy_In_grp$n))
+dfy_In_t <- dfy_In_grp[1:10,]
+
+
+ggplot(data = dfy_In_t, aes(x = reorder(dfy_In_t$gname, dfy_In_t$n), y = dfy_In_t$n)) +  
+  geom_bar(stat="identity", fill="Red", colour="black", label=dfy_In_t$n) +
+  coord_flip() + theme_bw(base_size = 10)  +
+  labs(title="", x ="Top Terror Groups - India", y = "Number Killed")
+
+```
+
+
+# Analysis by top terror group
+
+Top count of terror attacks is cumulatively by "unknown" groups. These are spread across India.
+Since this is a primary group responsible for many deaths
+```{r}
+#Analysis of top terror group "Unknown"
+dfy_In_Unk <- subset(dfy_In_kw, dfy_In_kw$gname == dfy_In_grp$gname[1] )
+#unique(dfy_In_Unk$provstate)
+
+#Geographical distribution of attacks by "Unknown" groups.
+leaflet(data = dfy_In_Unk) %>%
+  addTiles() %>%
+  addMarkers(lat=dfy_In_Unk$latitude, lng=dfy_In_Unk$longitude, clusterOptions = markerClusterOptions(),
+             popup= paste(
+                          "<br><br><strong>Place: </strong>", dfy_In_Unk$city,"-",dfy_In_Unk$provstate,
+                          "<br><strong>Killed: </strong>", dfy_In_Unk$nkill
+                          
+             ))
+```
+These attacks are primarly carried out in East and North India. In Eastern Part differnt Maoist outfits are active as and in norther part various seperatists outfits have carried out attacks.
+
+# Trend in killings by "Unknown" Assailants
+
+```{r}
+#what is the trend of killings?
+dfy_In_Unk %>% group_by(iyear) %>% summarise(n = sum(nkill)) %>% ungroup() -> dfy_In_Unk_sum
+ggplot(data = dfy_In_Unk_sum, aes(x = iyear, y = n)) +       
+  geom_line() + geom_point() + theme_bw() +
+  labs(title="Unknown Attacks", x ="Years", y = "Number Killed")
+
+
+```
+```{r}
+dfy_In_Unk %>% group_by(provstate) %>% summarise(n = sum(nkill))%>% ungroup() -> dfy_In_Unk_temp
+ggplot(data = dfy_In_Unk_temp, aes(x = reorder(dfy_In_Unk_temp$provstate, dfy_In_Unk_temp$n), y = dfy_In_Unk_temp$n)) +  
+  geom_bar(stat="identity", fill="Brown", colour="black") +
+  coord_flip() + theme_bw(base_size = 10)  +
+  labs(title="", x ="Top Targets", y = "Number Killed")
+```
+Though not as much killings as in the decades of 90's, in last 8 years from 2010, 
+there is rising trend in killings where groups may not be taking responsibility of attacks to 
+popularize their propoganda. This poses significant threat to govt as battling 
+unknown groups is a challenge.
+
+# Major targets by "Unknown" Assailants
+
+```{r}
+# Who are the major targets?
+
+dfy_In_Unk %>% group_by(targtype1_txt) %>% summarise(n = sum(nkill)) %>% ungroup() -> Unk_trg
+Unk_trg <- arrange(Unk_trg, desc(Unk_trg$n))
+Unk_tbl <- Unk_trg[1:5,]
+colnames(Unk_tbl) <- c("Target", "No. of Killed")
+
+ggplot(data = Unk_trg, aes(x = reorder(Unk_trg$targtype1_txt, Unk_trg$n), y = Unk_trg$n)) +  
+  geom_bar(stat="identity", fill="Brown", colour="black") +
+  coord_flip() + theme_bw(base_size = 10)  +
+  labs(title="", x ="Top Targets", y = "Number Killed")
+```
+
+# Biggest attack by "Unknown" group
+
+```{r}
+#Which is the major attack by Maoist?
+dfy_In_Unk<- arrange(dfy_In_Unk, desc(dfy_In_Unk$nkill))
+
+leaflet(data = dfy_In_Unk[1,]) %>%
+  addTiles() %>%
+  addMarkers(lat=dfy_In_Unk[1,]$latitude, lng=dfy_In_Unk[1,]$longitude, clusterOptions = markerClusterOptions(),
+             popup= paste(
+               "<br><br><strong>Place: </strong>", dfy_In_Unk[1,]$city,"-",dfy_In_Unk[1,]$provstate,
+               "<br><strong>Killed: </strong>", dfy_In_Unk[1,]$nkill,
+               "<br><strong>Year: </strong>", dfy_In_Unk[1,]$iyear,
+               "<br><strong>Wounded: </strong>", dfy_In_Unk[1,]$nwound,
+               "<br><strong>Notes: </strong>", dfy_In_Unk[1,]$addnotes
+          
+             ))
+```
+
+This attack at near Panipat / New Delhi and in years near 2007 which would lead to high probablity 
+of some sort of separatist movement activity. Other than LeT and Hizbul Hizbul Mujahideen (HM), 
+there were many offshoots of this movement.
+
+#Second Largest group - Sikh Extremists
+Shikh Extremism was largly from period from 1985 to 1994 in Punjab and Delhi. 
+For this we will focus of statistics as things are controlled.
+
+```{r}
+
+dfy_In_Skh <- subset(dfy_In_kw, dfy_In_kw$gname == dfy_In_grp$gname[2] )
+#unique(dfy_In_Skh$provstate)
+
+dfy_In_Skh %>% group_by(iyear) %>% summarise(n = sum(nkill)) %>% ungroup() -> dfy_Skh_grp
+
+ggplot(data = dfy_Skh_grp, aes(x = iyear, y = n)) +       
+  geom_line() + geom_point() + theme_bw() +
+  labs(title="Sikh Extremist Attacks", x ="Years", y = "Number Killed")
+
+
+```
+
+
+#Third largest group is Communist Party of India - Maoist (CPI-Maoist)
+
+```{r}
+dfy_In_Mao <- subset(dfy_In_kw, dfy_In_kw$gname == dfy_In_grp$gname[3] )
+#unique(dfy_In_Mao$provstate)
+
+dfy_In_Mao %>% group_by(iyear) %>% summarise(n = sum(nkill)) %>% ungroup() -> dfy_Mao_grp
+
+ggplot(data = dfy_Mao_grp, aes(x = iyear, y = n)) +       
+  geom_line() + geom_point() + theme_bw() +
+  labs(title="Maoist Attacks", x ="Years", y = "Number Killed")
+```
+
+The Maoist attacks have been curtailed to great extent but it keep on resurfacing. 
+This problem is diverse in nature owing to the number of states it is spread across. 
+
+```{r}
+
+leaflet(data = dfy_In_Mao) %>%
+  addTiles() %>%
+  addMarkers(lat=dfy_In_Mao$latitude, lng=dfy_In_Mao$longitude, clusterOptions = markerClusterOptions(),
+             popup= paste(
+               "<br><br><strong>Place: </strong>", dfy_In_Mao$city,"-",dfy_In_Mao$provstate,
+               "<br><strong>Killed: </strong>", dfy_In_Mao$nkill,
+               "<br><strong>Year: </strong>", dfy_In_Mao$iyear
+               
+             ))
+
+```
+This group is largly active in the south eastern part of India. 
+These attacks are largly in rural areas where are are clashes between 
+tribals who support Maoist and govt forces.
+
+```{r}
+dfy_In_Mao <- subset(dfy_In_kw, dfy_In_kw$gname == dfy_In_grp$gname[3] )
+#unique(dfy_In_Mao$provstate)
+
+dfy_In_Mao %>% group_by(provstate) %>% summarise(n = sum(nkill)) %>% ungroup() -> dfy_Mao_st
+
+theme_set(theme_bw())
+
+# Draw plot
+ggplot(dfy_Mao_st, aes(x=reorder(dfy_Mao_st$provstate, dfy_Mao_st$n), y=dfy_Mao_st$n)) + 
+  geom_bar(stat="identity", width=.5, fill="tomato3") + 
+  labs(title="States vs No. Killed", 
+       caption="source: mpg", x = "States attacked by Maoist", y = "No. Killed") + 
+  theme(axis.text.x = element_text(angle=90, vjust=0.6))
+```
+
+All three states of Chhattisgarh, West Bengal and Jharkhand are connected and 
+forms a cohesive region for their influence. 
+Successive Govts have struggled to address concerns and these manifest in form of attacks and skirmishes.
+
+Unlike other groups, Maoist target mainly Police.
+```{r}
+dfy_In_Mao %>% group_by(targtype1_txt) %>% summarise(n = sum(nkill)) %>% ungroup() -> dfy_Mao_trg
+
+dfy_Mao_trg <- arrange(dfy_Mao_trg, desc(dfy_Mao_trg$n))
+
+# Draw plot
+ggplot(dfy_Mao_trg, aes(x=reorder(dfy_Mao_trg$targtype1_txt, dfy_Mao_trg$n), y=dfy_Mao_trg$n)) + 
+  geom_bar(stat="identity", width=.5, fill="Magenta") + 
+  labs(title="Target type vs No. Killed", 
+       caption="source: mpg", x = "States attacked by Maoist", y = "No. Killed") + 
+  theme(axis.text.x = element_text(angle=90, vjust=0.6))
+
+```
+
+# Attacks in Jammu & Kashmir (Norther state in India)
+
+
+```{r}
+dfy_JK <- subset(dfy_In_kw, dfy_In_kw$provstate == "Jammu and Kashmir")
+dfy_JK %>% group_by(gname) %>% summarise(n = sum(nkill)) %>% ungroup() -> dfy_JK_grp
+dfy_JK_grp <- arrange(dfy_JK_grp, desc(dfy_JK_grp$n))
+
+ggplot(data = dfy_JK_grp[1:5,], aes(x = reorder(dfy_JK_grp[1:5,]$gname, dfy_JK_grp[1:5,]$n), y = dfy_JK_grp[1:5,]$n)) +  
+  geom_bar(stat="identity", fill="Green", colour="Dark Green") +
+  coord_flip() + theme_bw(base_size = 15)  +
+  labs(title="", x ="Top Terror Outfits in J&K", y = "Number Killed")
+
+```
+
+In J&K, it seems that lot of attacks that have been carried out have not taken any responsibity. 
+Combined attacks of LeT and HM are less than attacks by Unkown perpetrators.
+
+
+```{r}
+#Trend of killings in J&K
+dfy_JK %>% group_by(iyear) %>% summarise(n = sum(nkill)) %>% ungroup() -> dfy_JK_trnd
+ggplot(data = dfy_JK_trnd, aes(x = iyear, y = n)) +       
+  geom_line() + geom_point() + theme_bw() +
+  labs(title="J&K trend", x ="Years", y = "Number Killed")
+```
+
+Though years around 2000 have been the worst in area, last 8 years from 2010 has seen increasing trend. 
+This area has been in conflict since the independence of india in 1947 and there 
+have been various agenda from various groups. 
+There is a deeper history to really take any sides here.
+
+# Distribution of attacks in J&K
+
+```{r}
+leaflet(data = dfy_JK) %>%
+  addTiles() %>%
+  addMarkers(lat=dfy_JK$latitude, lng=dfy_JK$longitude, clusterOptions = markerClusterOptions(),
+             popup= paste(
+               "<br><br><strong>Place: </strong>", dfy_JK$city,"-",dfy_JK$provstate,
+               "<br><strong>Killed: </strong>", dfy_JK$nkill,
+               "<br><strong>Year: </strong>", dfy_JK$iyear
+               
+             ))
+```
+
+Most of the attacks have been carried out in the eastern part of J&K near LoC (Line of Control). 
+Some details of LoC can be found here (https://en.wikipedia.org/wiki/Line_of_Control)
+
+
+
+# Top target by militants
+
+```{r}
+#Private citizens and property are points of target in J&K
+dfy_JK %>% group_by(targtype1_txt) %>% summarise(n = sum(nkill)) %>% ungroup() -> dfy_JK_top_trnd
+dfy_JK_top_trnd <- arrange(dfy_JK_top_trnd, desc(dfy_JK_top_trnd$n))
+
+ggplot(data = dfy_JK_top_trnd, aes(x = targtype1_txt, y = n)) +       
+  geom_line() + geom_point(aes(size=n)) + theme_bw()+
+  labs(title="J&K Targets", x ="Targets", y = "Number Killed") + theme(axis.text.x = element_text(angle = 90, hjust = 1))
+
+```
+
+Private Citizens/property and Military are the primary targets for these groups. 
+There have been fewer attacks on the infrastructure of the state. This state has an active toursim potential 
+and these groups have targetted them very rarely as this is the primary source of 
+revenue for local population.
+
+# Analyzing LeT
+
+```{r}
+dfy_In_LeT <- subset(dfy_In_kw, dfy_In_kw$gname == dfy_In_grp$gname[4])
+
+#what is the trend of killings by LeT
+dfy_In_LeT %>% group_by(iyear) %>% summarise(n = sum(nkill)) %>% ungroup() -> dfy_In_LeT_sum
+
+ggplot(data = dfy_In_LeT_sum, aes(x = iyear, y = n)) +       
+  geom_line() + geom_point() + theme_bw() +
+  labs(title="LeT terror trend", x ="Years", y = "Number Killed")
+```
+
+LeT also contributes to the upward trend in last 5 years.
+
+# Major targets of LeT
+
+```{r}
+# Who are the major targets for LET?
+dfy_In_LeT %>% group_by(targtype1_txt) %>% summarise(n = sum(nkill)) %>% ungroup() -> LeT_trg
+LeT_trg <- arrange(LeT_trg, desc(LeT_trg$n))
+#LeT_trg[1:5,]
+
+ggplot(data = LeT_trg[1:5,], aes(x = reorder(LeT_trg[1:5,]$targtype1_txt, LeT_trg[1:5,]$n), y = LeT_trg[1:5,]$n)) +  
+  geom_bar(stat="identity", fill="Green", colour="Dark Green") +
+  coord_flip() + theme_bw(base_size = 15)  +
+  labs(title="", x ="LeT Targets", y = "Number Killed")
+```
+
+LeT targets private citizens and property along with skirmishes with military. 
+
+
+#Preffered Mode of attack
+
+```{r}
+#LeT by attach type
+dfy_In_LeT %>% group_by(attacktype1_txt) %>% summarise(n = sum(nkill)) %>% ungroup() -> LeT_wep
+LeT_wep <- arrange(LeT_wep, desc(LeT_wep$n))
+
+ggplot(data = LeT_wep, aes(x = reorder(LeT_wep$attacktype1_txt, LeT_wep$n), y = LeT_wep$n)) +  
+  geom_bar(stat="identity", fill="Blue", colour="Black") +
+  coord_flip() + theme_bw(base_size = 12)  +
+  labs(title="", x ="LeT - Attack Type", y = "Number of events")
+```
+
+Armed Assaults and Bombings are the key mode of attack by LeT.
+
+# Regional stability
+In this section, we will try to see how statistics check out from region perspective. India has neighbours Pakistan, Afganistan and Bangladesh. Afghanistan and Pakistan are known hotbeds in this region. Is it contributing to spillover effect for India?
+```{r}
+#Regional stability - India, Pakistan, Afghanistan & Bangladesh
+
+dfy_reg <- subset(all_data, all_data$country_txt %in% c("India", "Pakistan", "Afghanistan", "Bangladesh"))
+dfy_reg_kw <- subset(dfy_reg, dfy_reg$nkill>0)
+dfy_reg_kw %>% group_by(iyear) %>% summarise(n = sum(nkill))%>% ungroup() -> dfy_reg_tot
+dfy_reg_tot <- arrange(dfy_reg_tot, desc(dfy_reg_tot$n))
+
+ggplot(data = dfy_reg_tot, aes(x = iyear, y = n)) +       
+  geom_line() + geom_point() + theme_bw() +
+  labs(title="Region terror trend", x ="Years", y = "Number Killed")
+```
+
+There has been an expotential increase of number of people killed since last 15 years in region.
+
+
+# Afghanistan is most unstable and growing
+
+```{r}
+# rise in countries
+dfy_reg_kw %>% group_by(iyear, country_txt) %>% summarise(n = sum(nkill))%>% ungroup() -> dfy_reg_tot_cntry
+dfy_reg_tot_cntry <- arrange(dfy_reg_tot_cntry, desc(dfy_reg_tot_cntry$country_txt))
+ggplot(data = dfy_reg_tot_cntry, aes(x = reorder(dfy_reg_tot_cntry$country_txt, dfy_reg_tot_cntry$n), y = dfy_reg_tot_cntry$n), fill = iyear ) +  
+  geom_bar(aes(fill = iyear),stat="identity", colour="Black") +
+  coord_flip() + theme_bw(base_size = 10)  +
+  labs(title="", x ="LeT - Attack Type", y = "Number of events")
+```
+
+Afghanistan is going through a tough time with number of attacks increasing year on year. Each decade the situation seems to be worsening. India being close neighours will have high probability of spillover effect and challenges.
+
+This concludes my currrent scope of analysis. In future I do intend to add some analysis on texts of notes and new items related to attacks on India.
